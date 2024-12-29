@@ -38,11 +38,11 @@ module Apecs.Physics (
   BVec, WVec,
 
   module Apecs,
-  module Linear.V2,
+  -- module Linear.V2,
   ) where
 
 import           Apecs
-import           Linear.V2
+-- import           Linear.V2
 
 import           Apecs.Physics.Body       ()
 import           Apecs.Physics.Collision

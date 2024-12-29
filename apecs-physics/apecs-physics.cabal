@@ -52,11 +52,12 @@ library
     , linear            >=1.20 && <2
     , template-haskell  >=2.12 && <3
     , vector            >=0.10 && <0.14
+    , geomancy
 
   ghc-options:
     -Wall -O2 -Wno-orphans -Wno-unused-do-bind -Wno-name-shadowing
 
-  cc-options:       -std=c99
+  cc-options:       -std=c99 -DCP_USE_DOUBLES=0
 
   if flag(release)
     cc-options: -DNDEBUG

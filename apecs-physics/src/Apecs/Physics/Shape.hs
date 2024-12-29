@@ -14,21 +14,24 @@ module Apecs.Physics.Shape where
 
 import           Apecs.Core
 import           Control.Monad
-import           Control.Monad.IO.Class (liftIO, MonadIO)
+import           Control.Monad.IO.Class (MonadIO, liftIO)
 import           Data.Bits
-import qualified Data.IntMap          as M
-import qualified Data.IntSet          as S
+import qualified Data.IntMap            as M
+import qualified Data.IntSet            as S
 import           Data.IORef
-import           Data.Monoid          ((<>))
-import qualified Data.Vector.Storable as V
-import qualified Data.Vector.Unboxed  as U
+import           Data.Monoid            ((<>))
+import qualified Data.Vector.Storable   as V
+import qualified Data.Vector.Unboxed    as U
 import           Foreign.ForeignPtr
 import           Foreign.Ptr
-import qualified Language.C.Inline    as C
-import           Linear.V2
+import qualified Language.C.Inline      as C
+-- import           Linear.V2
 
-import           Apecs.Physics.Space  ()
+import           Apecs.Physics.Space    ()
 import           Apecs.Physics.Types
+import           Foreign                (Storable (peek), with)
+import           Geomancy.Vec2          (Vec2 (..), toTuple)
+import           Text.Printf            (printf)
 
 C.context (phycsCtx <> C.vecCtx)
 C.include "<chipmunk.h>"
@@ -44,15 +47,15 @@ defaultFilter :: CollisionFilter
 defaultFilter = CollisionFilter 0 maskAll maskAll
 
 -- | A box with the given height, width, and center point
-boxShape :: Double -> Double -> Vec -> Convex
+boxShape :: Float -> Float -> Vec -> Convex
 boxShape w h offset = Convex ((+offset) <$> verts) 0
   where
     w' = w/2
     h' = h/2
-    verts = [ V2 (-w') (-h')
-            , V2 (-w') h'
-            , V2 w' h'
-            , V2 w' (-h') ]
+    verts = [ Vec2 (-w') (-h')
+            , Vec2 (-w') h'
+            , Vec2 w' h'
+            , Vec2 w' (-h') ]
 
 instance Component Shape where
   type Storage Shape = Space Shape
@@ -91,29 +94,31 @@ newShape :: SpacePtr -> Ptr Body -> Convex -> Int -> IO (Ptr Shape)
 newShape spacePtr' bodyPtr shape (fromIntegral -> ety) = withForeignPtr spacePtr' (go shape)
   where
 
-    go (Convex [fmap realToFrac -> V2 x y] (realToFrac -> radius)) spacePtr = [C.block| cpShape* {
-      const cpVect vec = { $(double x), $(double y) };
-      cpShape* sh = cpCircleShapeNew($(cpBody* bodyPtr), $(double radius), vec);
+    go (Convex [toTuple -> (x, y)] (realToFrac -> radius)) spacePtr = [C.block| cpShape* {
+      const cpVect vec = { $(float x), $(float y) };
+      cpShape* sh = cpCircleShapeNew($(cpBody* bodyPtr), $(float radius), vec);
       cpShapeSetUserData(sh, (void*) $(intptr_t ety));
       return cpSpaceAddShape( $(cpSpace* spacePtr), sh); } |]
 
-    go (Convex [ fmap realToFrac -> V2 xa ya
-               , fmap realToFrac -> V2 xb yb ]
+    go (Convex [ toTuple -> (xa, ya)
+               , toTuple -> (xb, yb) ]
                 (realToFrac -> radius)
        ) spacePtr = [C.block| cpShape* {
-       const cpVect va = { $(double xa), $(double ya) };
-       const cpVect vb = { $(double xb), $(double yb) };
-       cpShape* sh = cpSegmentShapeNew($(cpBody* bodyPtr), va, vb, $(double radius));
+       const cpVect va = { $(float xa), $(float ya) };
+       const cpVect vb = { $(float xb), $(float yb) };
+       cpShape* sh = cpSegmentShapeNew($(cpBody* bodyPtr), va, vb, $(float radius));
        cpShapeSetUserData(sh, (void*) $(intptr_t ety));
        return cpSpaceAddShape( $(cpSpace* spacePtr), sh); } |]
 
-    go (Convex ((fmap.fmap) realToFrac -> verts)
+    -- go (Convex ((fmap.fmap) realToFrac -> verts)
+    -- go (Convex (fmap toTuple -> verts)
+    go (Convex verts
                (realToFrac -> radius)
        ) spacePtr = liftIO $ do
          vec <- V.thaw (V.fromList verts)
          [C.block| cpShape* {
            cpTransform trans = cpTransformIdentity;
-           cpShape* sh = cpPolyShapeNew($(cpBody* bodyPtr), $vec-len:vec, $vec-ptr:(cpVect *vec), trans, $(double radius));
+           cpShape* sh = cpPolyShapeNew($(cpBody* bodyPtr), $vec-len:vec, $vec-ptr:(cpVect *vec), trans, $(float radius));
            cpShapeSetUserData(sh, (void*) $(intptr_t ety));
            return cpSpaceAddShape( $(cpSpace* spacePtr), sh); } |]
 
@@ -152,13 +157,23 @@ instance MonadIO m => ExplGet m (Space Sensor) where
     Sensor <$> getSensor s
 
 -- Elasticity
-getElasticity :: Ptr Shape -> IO Double
-getElasticity shape = realToFrac <$> [C.exp| double {
+getElasticity :: Ptr Shape -> IO Float
+getElasticity shape = realToFrac <$> [C.exp| float {
   cpShapeGetElasticity($(cpShape* shape)) }|]
 
-setElasticity :: Ptr Shape -> Double -> IO ()
-setElasticity shape (realToFrac -> elasticity) = [C.exp| void {
-  cpShapeSetElasticity($(cpShape* shape), $(double elasticity)) }|]
+setElasticity :: Ptr Shape -> Float -> IO ()
+setElasticity shape (realToFrac -> elasticity) = do
+  -- print (f, elasticity :: C.CFloat)
+  -- print shape
+  [C.exp| void { cpShapeSetElasticity($(cpShape* shape), $(float elasticity)) }|]
+  -- with elasticity $ \elasticityPtr -> do
+  --       -- Print the Haskell pointer and value
+  --       ptrValue <- peek elasticityPtr
+  --       print $ elasticityPtr
+  --       -- printf "elasticity in Haskell (raw pointer): %p\n" (castPtr elasticityPtr :: Ptr ())
+  --       -- printf "elasticity in Haskell (value): %f\n" (realToFrac ptrValue :: Float)
+  --       -- Call the C function
+  --       [C.exp| void { cpShapeSetElasticity($(cpShape* shape), $(float *elasticityPtr)) }|]
 
 instance Component Elasticity where
   type Storage Elasticity = Space Elasticity
@@ -180,13 +195,13 @@ instance MonadIO m => ExplGet m (Space Elasticity) where
     Elasticity <$> getElasticity s
 
 -- Mass
-getMass :: Ptr Shape -> IO Double
-getMass shape = realToFrac <$> [C.exp| double {
+getMass :: Ptr Shape -> IO Float
+getMass shape = realToFrac <$> [C.exp| float {
   cpShapeGetMass($(cpShape* shape)) }|]
 
-setMass :: Ptr Shape -> Double -> IO ()
+setMass :: Ptr Shape -> Float -> IO ()
 setMass shape (realToFrac -> mass) = [C.exp| void {
-  cpShapeSetMass($(cpShape* shape), $(double mass)) }|]
+  cpShapeSetMass($(cpShape* shape), $(float mass)) }|]
 
 instance Component Mass where
   type Storage Mass = Space Mass
@@ -208,13 +223,13 @@ instance MonadIO m => ExplGet m (Space Mass) where
     Mass <$> getMass s
 
 -- Density
-getDensity :: Ptr Shape -> IO Double
-getDensity shape = realToFrac <$> [C.exp| double {
+getDensity :: Ptr Shape -> IO Float
+getDensity shape = realToFrac <$> [C.exp| float {
   cpShapeGetDensity($(cpShape* shape)) }|]
 
-setDensity :: Ptr Shape -> Double -> IO ()
+setDensity :: Ptr Shape -> Float -> IO ()
 setDensity shape (realToFrac -> density) = [C.exp| void {
-  cpShapeSetDensity($(cpShape* shape), $(double density)) }|]
+  cpShapeSetDensity($(cpShape* shape), $(float density)) }|]
 
 instance Component Density where
   type Storage Density = Space Density
@@ -236,13 +251,13 @@ instance MonadIO m => ExplGet m (Space Density) where
     Density <$> getDensity s
 
 -- Friction
-getFriction :: Ptr Shape -> IO Double
-getFriction shape = realToFrac <$> [C.exp| double {
+getFriction :: Ptr Shape -> IO Float
+getFriction shape = realToFrac <$> [C.exp| float {
   cpShapeGetFriction($(cpShape* shape)) }|]
 
-setFriction :: Ptr Shape -> Double -> IO ()
+setFriction :: Ptr Shape -> Float -> IO ()
 setFriction shape (realToFrac -> friction) = [C.exp| void {
-  cpShapeSetFriction($(cpShape* shape), $(double friction)) }|]
+  cpShapeSetFriction($(cpShape* shape), $(float friction)) }|]
 
 instance Component Friction where
   type Storage Friction = Space Friction
@@ -266,13 +281,13 @@ instance MonadIO m => ExplGet m (Space Friction) where
 -- SurfaceVelocity
 getSurfaceVelocity :: Ptr Shape -> IO Vec
 getSurfaceVelocity shape = do
- x <- [C.exp| double { cpShapeGetSurfaceVelocity($(cpShape* shape)).x }|]
- y <- [C.exp| double { cpShapeGetSurfaceVelocity($(cpShape* shape)).y }|]
- return (V2 (realToFrac x) (realToFrac y))
+ x <- [C.exp| float { cpShapeGetSurfaceVelocity($(cpShape* shape)).x }|]
+ y <- [C.exp| float { cpShapeGetSurfaceVelocity($(cpShape* shape)).y }|]
+ return (Vec2 (realToFrac x) (realToFrac y))
 
 setSurfaceVelocity :: Ptr Shape -> Vec -> IO ()
-setSurfaceVelocity shape (V2 (realToFrac -> x) (realToFrac -> y)) = [C.block| void {
-  const cpVect vec = { $(double x), $(double y) };
+setSurfaceVelocity shape (Vec2 (realToFrac -> x) (realToFrac -> y)) = [C.block| void {
+  const cpVect vec = { $(float x), $(float y) };
   cpShapeSetSurfaceVelocity($(cpShape* shape), vec);
   }|]
 

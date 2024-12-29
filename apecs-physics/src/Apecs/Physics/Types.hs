@@ -25,6 +25,7 @@ import           Data.Monoid               ((<>))
 import qualified Foreign.C.Types           as C
 import           Foreign.ForeignPtr
 import           Foreign.Ptr
+import           Geomancy.Vec2             (Vec2)
 import           Language.C.Inline
 import           Language.C.Inline.Context
 import qualified Language.C.Types          as C
@@ -45,7 +46,7 @@ phycsTypesTable = Map.fromList
   , (C.TypeName "cpDataPointer",      [t| C.CUInt          |])
   , (C.TypeName "cpShape",            [t| Shape            |])
   , (C.TypeName "cpPointQueryInfo",   [t| PointQueryResult |])
-  , (C.TypeName "cpVect",             [t| V2 C.CDouble     |])
+  , (C.TypeName "cpVect",             [t| Vec2     |])
   , (C.TypeName "cpSpace",            [t| FrnSpace         |])
   ]
 
@@ -53,7 +54,8 @@ phycsTypesTable = Map.fromList
 data Physics
 
 -- | Vector type used by the library
-type Vec = V2 Double
+-- type Vec = V2 Float
+type Vec = Vec2
 -- | Type synonym indicating that a vector is expected to be in body-space coordinates
 type BVec = Vec
 -- | Type synonym indicating that a vector is expected to be in world-space coordinates
@@ -98,14 +100,14 @@ data WorldForce         = WorldForce !Vec !WVec
 -- The torque is applied to the entire body at once.
 -- This component is reset to @ 0 @ after every simulation step, so it
 -- is mainly used to apply a torque as opposed to being read.
-newtype Torque          = Torque Double
+newtype Torque          = Torque Float
 -- | A component representing the mass of the @Body@ overall.
-newtype BodyMass        = BodyMass Double deriving (Eq, Show)
+newtype BodyMass        = BodyMass Float deriving (Eq, Show)
 -- | The moment of inertia of the @Body@.
 -- This is basically the body's tendency to resist angular acceleration.
-newtype Moment          = Moment Double deriving (Eq, Show)
-newtype Angle           = Angle Double deriving (Eq, Show)
-newtype AngularVelocity = AngularVelocity Double
+newtype Moment          = Moment Float deriving (Eq, Show)
+newtype Angle           = Angle Float deriving (Eq, Show)
+newtype AngularVelocity = AngularVelocity Float
 -- | Where the @Body@'s center of gravity is, in body-local coordinates.
 -- Can be read and written to.
 newtype CenterOfGravity = CenterOfGravity BVec
@@ -121,7 +123,7 @@ data Shape = Shape Entity Convex
 
 -- | A convex polygon.
 --   Consists of a list of vertices, and a radius.
-data Convex = Convex [BVec] Double deriving (Eq, Show)
+data Convex = Convex [BVec] Float deriving (Eq, Show)
 
 -- | If a body is a 'Sensor', it exists only to trigger collision responses.
 -- It won't phyiscally interact with other bodies in any way, but it __will__
@@ -131,7 +133,7 @@ newtype Sensor          = Sensor          Bool       deriving (Eq, Show)
 -- elastic collisions, IE, will be bouncier.
 --
 -- See <https://en.wikipedia.org/wiki/Elasticity_(physics)> for more information.
-newtype Elasticity      = Elasticity      Double     deriving (Eq, Show)
+newtype Elasticity      = Elasticity      Float     deriving (Eq, Show)
 -- | The mass of a shape is technically a measure of how much resistance it has to
 -- being accelerated, but it's generally easier to understand it as being how "heavy" something is.
 --
@@ -139,19 +141,19 @@ newtype Elasticity      = Elasticity      Double     deriving (Eq, Show)
 -- for you.
 --
 -- See <https://en.wikipedia.org/wiki/Mass> for more information.
-newtype Mass            = Mass            Double     deriving (Eq, Show)
+newtype Mass            = Mass            Float     deriving (Eq, Show)
 -- | The density of a shape is a measure of how much mass an object has in a given volume.
 --
 -- The physics engine lets you set this, and it will calculate the 'Mass' and other components for you.
 --
 -- See <https://en.wikipedia.org/wiki/Density> for more information.
-newtype Density         = Density         Double     deriving (Eq, Show)
+newtype Density         = Density         Float     deriving (Eq, Show)
 -- | The friction of an object is a measure of how much it resists movement.
 -- Shapes with high friction will naturally slow down more quickly over time than objects
 -- with low friction.
 --
 -- See <https://en.wikipedia.org/wiki/Friction> for more information.
-newtype Friction        = Friction        Double     deriving (Eq, Show)
+newtype Friction        = Friction        Float     deriving (Eq, Show)
 newtype SurfaceVelocity = SurfaceVelocity Vec        deriving (Eq, Show)
 
 type CollisionGroup = CUInt
@@ -208,43 +210,43 @@ newtype Iterations = Iterations Int deriving (Eq, Show)
 -- | Gravity force vector, global value
 newtype Gravity = Gravity Vec deriving (Eq, Show)
 -- | Daming factor, global value
-newtype Damping = Damping Double deriving (Eq, Show)
+newtype Damping = Damping Float deriving (Eq, Show)
 -- | Speed threshold to be considered idle, and a candidate for being put to sleep. Global value.
 -- Bodies with a speed less than this will not be simulated until a force acts upon them,
 -- which can potentially lead to large gains in performance, especially if there's a lot of
 -- inactive bodies in the simulation.
-newtype IdleSpeedThreshold = IdleSpeedThreshold Double deriving (Eq, Show)
+newtype IdleSpeedThreshold = IdleSpeedThreshold Float deriving (Eq, Show)
 -- | Sleep idle time threshold, global value
-newtype SleepIdleTime = SleepIdleTime Double deriving (Eq, Show)
+newtype SleepIdleTime = SleepIdleTime Float deriving (Eq, Show)
 -- | Collision parameter, global value
-newtype CollisionSlop = CollisionSlop Double deriving (Eq, Show)
+newtype CollisionSlop = CollisionSlop Float deriving (Eq, Show)
 -- | Collision parameter, global value
-newtype CollisionBias = CollisionBias Double deriving (Eq, Show)
+newtype CollisionBias = CollisionBias Float deriving (Eq, Show)
 
 cast :: Space a -> Space b
 cast (Space b s c h w) = Space b s c h w
 
 -- Constraint subcomponents
-newtype MaxForce      = MaxForce      Double deriving (Eq, Show)
-newtype MaxBias       = MaxBias       Double deriving (Eq, Show)
-newtype ErrorBias     = ErrorBias     Double deriving (Eq, Show)
+newtype MaxForce      = MaxForce      Float deriving (Eq, Show)
+newtype MaxBias       = MaxBias       Float deriving (Eq, Show)
+newtype ErrorBias     = ErrorBias     Float deriving (Eq, Show)
 newtype CollideBodies = CollideBodies Bool   deriving (Eq, Show)
-newtype Impulse       = Impulse       Double deriving (Eq, Show)
+newtype Impulse       = Impulse       Float deriving (Eq, Show)
 
 data Constraint = Constraint Entity Entity ConstraintType deriving (Eq, Show)
 
 data ConstraintType
   = PinJoint BVec BVec -- ^ Maintains a fixed distance between two anchor points
-  | SlideJoint BVec BVec Double Double -- ^ A @PinJoint@ with minimum and maximum distance
+  | SlideJoint BVec BVec Float Float -- ^ A @PinJoint@ with minimum and maximum distance
   | PivotJoint WVec -- ^ Creates a pivot point at the given world coordinate
   | PivotJoint2 BVec BVec -- ^ Creates a pivot point at the given body coordinates
   | GrooveJoint BVec BVec BVec -- ^ The first two vectors are the start and end of the groove on body A, the third argument is the anchor point on body B.
-  | DampedSpring BVec BVec Double Double Double -- ^ Spring between two anchor points, with given rest length, stiffness, and damping.
-  | DampedRotarySpring Double Double Double -- ^ Rotary sping, with given rest angle, stiffness, and damping.
-  | RotaryLimitJoint Double Double -- ^ Joint with minimum and maximum angle
-  | RatchetJoint Double Double -- ^ Rathet joint with given phase and ratchet (distance between clicks).
-  | GearJoint Double Double -- Keeps angular velocity ratio constant. The first argument is phase, the initial offset, the second argument is the ratio
-  | SimpleMotor Double -- ^ Keeps relative angular velocity constant
+  | DampedSpring BVec BVec Float Float Float -- ^ Spring between two anchor points, with given rest length, stiffness, and damping.
+  | DampedRotarySpring Float Float Float -- ^ Rotary sping, with given rest angle, stiffness, and damping.
+  | RotaryLimitJoint Float Float -- ^ Joint with minimum and maximum angle
+  | RatchetJoint Float Float -- ^ Rathet joint with given phase and ratchet (distance between clicks).
+  | GearJoint Float Float -- Keeps angular velocity ratio constant. The first argument is phase, the initial offset, the second argument is the ratio
+  | SimpleMotor Float -- ^ Keeps relative angular velocity constant
   deriving (Eq, Show)
 
 -- TODO
@@ -307,8 +309,8 @@ data Collision = Collision
   } deriving (Eq, Show)
 
 data CollisionProperties = CollisionProperties
-  { collisionElasticity      :: Double
-  , collisionFriction        :: Double
+  { collisionElasticity      :: Float
+  , collisionFriction        :: Float
   , collisionSurfaceVelocity :: Vec
   } deriving (Eq, Show)
 
@@ -319,7 +321,7 @@ data SegmentQueryResult = SegmentQueryResult
   -- ^ The point that the segment impacted with the shape
   , sqImpactNormal :: Vec
   -- ^ The normal of the surface that the segment hit
-  , sqImpactAlpha  :: Double
+  , sqImpactAlpha  :: Float
   -- ^ The normalized distance along the query segment in the range `[0, 1]`.
   -- Multiply it by the length of the segment to get the distance away the shape is.
   } deriving (Eq, Show)
@@ -329,7 +331,7 @@ data PointQueryResult = PointQueryResult
   -- ^ What entity did this query connect with?
   , pqPoint    :: WVec
   -- ^ The closest point on the shape's surface (in world space)
-  , pqDistance :: Double
+  , pqDistance :: Float
   -- ^ The distance to the queried point
   , pqGradient :: Vec
   -- ^ The gradient of the distance function.

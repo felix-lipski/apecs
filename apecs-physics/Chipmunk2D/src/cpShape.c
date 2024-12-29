@@ -21,6 +21,7 @@
 
 #include "chipmunk_private.h"
 #include "chipmunk_unsafe.h"
+#include <stdio.h>
 
 #define CP_DefineShapeGetter(struct, type, member, name) \
 CP_DeclareShapeGetter(struct, type, name){ \
@@ -137,6 +138,12 @@ cpShapeGetElasticity(const cpShape *shape)
 void
 cpShapeSetElasticity(cpShape *shape, cpFloat elasticity)
 {
+	// printf("elasticity in c: %f\n", elasticity);
+	// printf("sizeof: %d\n", sizeof(elasticity));
+	// printf("shape in c: %d\n", shape);
+	// printf("sizeof: %d\n", sizeof(shape));
+	// printf("elasticity in c (raw pointer): %p\n", &elasticity);
+	// printf("elasticity in c (value): %f\n", elasticity);
 	cpAssertHard(elasticity >= 0.0f, "Elasticity must be positive.");
 	cpBodyActivate(shape->body);
 	shape->e = elasticity;

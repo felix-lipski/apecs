@@ -16,14 +16,15 @@ module Apecs.Physics.Space where
 
 import           Apecs
 import           Apecs.Core
-import           Control.Monad.IO.Class (liftIO, MonadIO)
+import           Control.Monad.IO.Class (MonadIO, liftIO)
 import           Data.IORef
 import           Foreign.Concurrent
-import           Foreign.ForeignPtr  (withForeignPtr)
-import qualified Language.C.Inline   as C
+import           Foreign.ForeignPtr     (withForeignPtr)
+import qualified Language.C.Inline      as C
 import           Linear.V2
 
 import           Apecs.Physics.Types
+import           Geomancy.Vec2          (Vec2 (..))
 
 C.context phycsCtx
 C.include "<chipmunk.h>"
@@ -34,12 +35,13 @@ newSpace = do
     spaceRaw <- [C.exp| cpSpace* { cpSpaceNew() } |]
     newForeignPtr spaceRaw [C.exp| void { cpSpaceFree($(cpSpace* spaceRaw)) } |]
 
-explStepPhysics :: SpacePtr -> Double -> IO ()
+explStepPhysics :: SpacePtr -> Float -> IO ()
 explStepPhysics spacePtr (realToFrac -> dT) = withForeignPtr spacePtr $ \space ->
-  [C.exp| void { cpSpaceStep( $(cpSpace* space), $(double dT) ) } |]
+  [C.exp| void { cpSpaceStep( $(cpSpace* space), $(float dT) ) } |]
 
-stepPhysics :: MonadIO m => Has w m Physics => Double -> SystemT w m ()
+stepPhysics :: MonadIO m => Has w m Physics => Float -> SystemT w m ()
 stepPhysics dT = do
+  -- liftIO $ print dT
   s :: Space Physics <- getStore
   liftIO$ explStepPhysics (spacePtr s) dT
 
@@ -59,17 +61,17 @@ instance MonadIO m => ExplInit m (Space Physics) where
 
 -- Gravity
 earthGravity :: Gravity
-earthGravity = Gravity $ V2 0 (-9.81)
+earthGravity = Gravity $ Vec2 0 (-9.81)
 
-getGravity :: SpacePtr -> IO (V2 Double)
+getGravity :: SpacePtr -> IO (Vec2)
 getGravity spacePtr = withForeignPtr spacePtr $ \space -> do
-  x <- [C.exp| double { cpSpaceGetGravity ($(cpSpace* space)).x } |]
-  y <- [C.exp| double { cpSpaceGetGravity ($(cpSpace* space)).y } |]
-  return (V2 (realToFrac x) (realToFrac y))
+  x <- [C.exp| float { cpSpaceGetGravity ($(cpSpace* space)).x } |]
+  y <- [C.exp| float { cpSpaceGetGravity ($(cpSpace* space)).y } |]
+  return (Vec2 (realToFrac x) (realToFrac y))
 
-setGravity :: SpacePtr -> V2 Double -> IO ()
-setGravity spacePtr (V2 (realToFrac -> x) (realToFrac -> y)) = withForeignPtr spacePtr $ \space -> [C.block| void {
-  const cpVect vec = { $(double x), $(double y) };
+setGravity :: SpacePtr -> Vec2 -> IO ()
+setGravity spacePtr (Vec2 (realToFrac -> x) (realToFrac -> y)) = withForeignPtr spacePtr $ \space -> [C.block| void {
+  const cpVect vec = { $(float x), $(float y) };
   cpSpaceSetGravity($(cpSpace* space), vec);
   } |]
 

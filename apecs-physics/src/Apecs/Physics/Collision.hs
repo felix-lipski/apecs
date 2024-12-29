@@ -23,17 +23,18 @@ import           Apecs
 import           Apecs.Core
 import           Control.Monad
 import           Control.Monad.IO.Class (MonadIO, liftIO)
-import qualified Data.IntMap         as M
+import qualified Data.IntMap            as M
 import           Data.IORef
-import qualified Data.Vector.Unboxed as U
-import           Foreign.ForeignPtr  (withForeignPtr)
+import qualified Data.Vector.Unboxed    as U
+import           Foreign.ForeignPtr     (withForeignPtr)
 import           Foreign.Ptr
-import qualified Language.C.Inline   as C
+import qualified Language.C.Inline      as C
 import           Linear.V2
 
-import           Apecs.Physics.Body  ()
-import           Apecs.Physics.Space ()
+import           Apecs.Physics.Body     ()
+import           Apecs.Physics.Space    ()
 import           Apecs.Physics.Types
+import           Geomancy.Vec2          (Vec2 (..))
 
 C.context (phycsCtx `mappend` C.funCtx)
 C.include "<chipmunk.h>"
@@ -44,13 +45,13 @@ defaultHandler = CollisionHandler (Wildcard 0) Nothing Nothing Nothing Nothing
 
 mkCollision :: Ptr Collision -> IO Collision
 mkCollision arb = do
-  nx <- realToFrac   <$> [C.exp| double { cpArbiterGetNormal($(cpArbiter* arb)).x } |]
-  ny <- realToFrac   <$> [C.exp| double { cpArbiterGetNormal($(cpArbiter* arb)).y } |]
+  nx <- realToFrac   <$> [C.exp| float { cpArbiterGetNormal($(cpArbiter* arb)).x } |]
+  ny <- realToFrac   <$> [C.exp| float { cpArbiterGetNormal($(cpArbiter* arb)).y } |]
   ba <- fromIntegral <$> [C.block| unsigned int { CP_ARBITER_GET_BODIES($(cpArbiter* arb), ba, bb); return (intptr_t) (ba->userData); } |]
   bb <- fromIntegral <$> [C.block| unsigned int { CP_ARBITER_GET_BODIES($(cpArbiter* arb), ba, bb); return (intptr_t) (bb->userData); } |]
   sa <- fromIntegral <$> [C.block| unsigned int { CP_ARBITER_GET_SHAPES($(cpArbiter* arb), sa, sb); return (intptr_t) (sa->userData); } |]
   sb <- fromIntegral <$> [C.block| unsigned int { CP_ARBITER_GET_SHAPES($(cpArbiter* arb), sa, sb); return (intptr_t) (sb->userData); } |]
-  return $ Collision (V2 nx ny) (Entity ba) (Entity bb) (Entity sa) (Entity sb)
+  return $ Collision (Vec2 nx ny) (Entity ba) (Entity bb) (Entity sa) (Entity sb)
 
 mkBeginCB :: MonadIO m => (Collision -> SystemT w IO Bool) -> SystemT w m BeginCB
 mkBeginCB sys = do

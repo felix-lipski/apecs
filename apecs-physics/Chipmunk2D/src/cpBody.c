@@ -21,6 +21,7 @@
 
 #include <float.h>
 #include <stdarg.h>
+#include <stdio.h>
 
 #include "chipmunk_private.h"
 
@@ -115,6 +116,7 @@ cpBodyFree(cpBody *body)
 		cpAssertHard(body->m >= 0.0f, "Body's mass is negative.");
 		cpAssertHard(body->i >= 0.0f, "Body's moment is negative.");
 		
+		// printf("m: %f, p: %f, %f\n", body->m, body->p.x, body->p.y);
 		cpv_assert_sane(body->p, "Body's position is invalid.");
 		cpv_assert_sane(body->v, "Body's velocity is invalid.");
 		cpv_assert_sane(body->f, "Body's force is invalid.");
@@ -360,6 +362,7 @@ static inline cpFloat
 SetAngle(cpBody *body, cpFloat a)
 {
 	body->a = a;
+	// printf("m: %f, p: %f, %f\n", body->m, body->p.x, body->p.y);
 	cpAssertSaneBody(body);
 	
 	return a;
@@ -374,8 +377,10 @@ cpBodyGetPosition(const cpBody *body)
 void
 cpBodySetPosition(cpBody *body, cpVect position)
 {
+	// printf("inline %f, %f\n", position.x, position.y);
 	cpBodyActivate(body);
 	cpVect p = body->p = cpvadd(cpTransformVect(body->transform, body->cog), position);
+	// printf("inline p %f, %f\n", p.x, p.y);
 	cpAssertSaneBody(body);
 	
 	SetTransform(body, p, body->a);
@@ -404,6 +409,7 @@ cpBodyGetVelocity(const cpBody *body)
 void
 cpBodySetVelocity(cpBody *body, cpVect velocity)
 {
+	// printf("vel %f, %f\n", velocity.x, velocity.y);
 	cpBodyActivate(body);
 	body->v = velocity;
 	cpAssertSaneBody(body);
@@ -420,6 +426,7 @@ cpBodySetForce(cpBody *body, cpVect force)
 {
 	cpBodyActivate(body);
 	body->f = force;
+	// printf("m: %f, p: %f, %f\n", body->m, body->p.x, body->p.y);
 	cpAssertSaneBody(body);
 }
 
@@ -511,13 +518,19 @@ cpBodyUpdateVelocity(cpBody *body, cpVect gravity, cpFloat damping, cpFloat dt)
 void
 cpBodyUpdatePosition(cpBody *body, cpFloat dt)
 {
+	// printf("1 | v: %f, %f\n", body->v.x, body->v.y);
+	// printf("  | p: %f, %f\n", body->p.x, body->p.y);
 	cpVect p = body->p = cpvadd(body->p, cpvmult(cpvadd(body->v, body->v_bias), dt));
 	cpFloat a = SetAngle(body, body->a + (body->w + body->w_bias)*dt);
 	SetTransform(body, p, a);
 	
 	body->v_bias = cpvzero;
 	body->w_bias = 0.0f;
+
+	// printf("2 | v: %f, %f\n", body->v.x, body->v.y);
+	// printf("  | p: %f, %f\n", body->p.x, body->p.y);
 	
+	// printf("m: %f, p: %f, %f\n", body->m, body->p.x, body->p.y);
 	cpAssertSaneBody(body);
 }
 

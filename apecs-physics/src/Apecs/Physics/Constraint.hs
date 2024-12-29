@@ -20,18 +20,19 @@ module Apecs.Physics.Constraint
 import           Apecs
 import           Apecs.Core
 import           Control.Monad
-import           Control.Monad.IO.Class (liftIO, MonadIO)
-import qualified Data.IntMap         as M
-import qualified Data.IntSet         as S
+import           Control.Monad.IO.Class (MonadIO, liftIO)
+import qualified Data.IntMap            as M
+import qualified Data.IntSet            as S
 import           Data.IORef
-import qualified Data.Vector.Unboxed as U
-import           Foreign.ForeignPtr  (withForeignPtr)
+import qualified Data.Vector.Unboxed    as U
+import           Foreign.ForeignPtr     (withForeignPtr)
 import           Foreign.Ptr
-import qualified Language.C.Inline   as C
+import qualified Language.C.Inline      as C
 import           Linear.V2
 
-import           Apecs.Physics.Space ()
+import           Apecs.Physics.Space    ()
 import           Apecs.Physics.Types
+import           Geomancy.Vec2          (toTuple)
 
 C.context phycsCtx
 C.include "<chipmunk.h>"
@@ -39,61 +40,61 @@ C.include "<chipmunk.h>"
 -- Constraint
 newConstraint :: SpacePtr -> Ptr Body -> Ptr Body -> Int -> ConstraintType -> IO (Ptr Constraint)
 newConstraint spacePtr bodyA bodyB (fromIntegral -> ety)
-              (PinJoint (fmap realToFrac -> V2 ax ay) (fmap realToFrac -> V2 bx by)) =
+              (PinJoint (toTuple -> (ax, ay)) (toTuple -> (bx, by))) =
   withForeignPtr spacePtr $ \space -> [C.block| cpConstraint* {
-    cpVect anchorA = cpv( $(double ax), $(double ay) );
-    cpVect anchorB = cpv( $(double bx), $(double by) );
+    cpVect anchorA = cpv( $(float ax), $(float ay) );
+    cpVect anchorB = cpv( $(float bx), $(float by) );
     cpConstraint* constraint = cpPinJointNew($(cpBody* bodyA), $(cpBody* bodyB),anchorA,anchorB);
     cpConstraintSetUserData(constraint, (void*) $(intptr_t ety));
     return cpSpaceAddConstraint($(cpSpace* space), constraint);
     } |]
 
 newConstraint spacePtr bodyA bodyB (fromIntegral -> ety)
-              (SlideJoint (fmap realToFrac -> V2 ax ay) (fmap realToFrac -> V2 bx by) (realToFrac -> min) (realToFrac -> max)) =
+              (SlideJoint (toTuple -> (ax, ay)) (toTuple -> (bx, by)) (realToFrac -> min) (realToFrac -> max)) =
   withForeignPtr spacePtr $ \space -> [C.block| cpConstraint* {
-    cpVect anchorA = cpv( $(double ax), $(double ay) );
-    cpVect anchorB = cpv( $(double bx), $(double by) );
-    cpConstraint* constraint = cpSlideJointNew($(cpBody* bodyA), $(cpBody* bodyB),anchorA,anchorB,$(double min),$(double max));
+    cpVect anchorA = cpv( $(float ax), $(float ay) );
+    cpVect anchorB = cpv( $(float bx), $(float by) );
+    cpConstraint* constraint = cpSlideJointNew($(cpBody* bodyA), $(cpBody* bodyB),anchorA,anchorB,$(float min),$(float max));
     cpConstraintSetUserData(constraint, (void*) $(intptr_t ety));
     return cpSpaceAddConstraint($(cpSpace* space), constraint);
     } |]
 
 newConstraint spacePtr bodyA bodyB (fromIntegral -> ety)
-              (PivotJoint (fmap realToFrac -> V2 x y)) =
+              (PivotJoint (toTuple -> (x, y))) =
   withForeignPtr spacePtr $ \space -> [C.block| cpConstraint* {
-    cpVect anchor = cpv( $(double x), $(double y) );
+    cpVect anchor = cpv( $(float x), $(float y) );
     cpConstraint* constraint = cpPivotJointNew($(cpBody* bodyA), $(cpBody* bodyB), anchor);
     cpConstraintSetUserData(constraint, (void*) $(intptr_t ety));
     return cpSpaceAddConstraint($(cpSpace* space), constraint);
     } |]
 
 newConstraint spacePtr bodyA bodyB (fromIntegral -> ety)
-              (PivotJoint2 (fmap realToFrac -> V2 ax ay) (fmap realToFrac -> V2 bx by)) =
+              (PivotJoint2 (toTuple -> (ax, ay)) (toTuple -> (bx, by))) =
   withForeignPtr spacePtr $ \space -> [C.block| cpConstraint* {
-    cpVect va = cpv( $(double ax), $(double ay) );
-    cpVect vb = cpv( $(double bx), $(double by) );
+    cpVect va = cpv( $(float ax), $(float ay) );
+    cpVect vb = cpv( $(float bx), $(float by) );
     cpConstraint* constraint = cpPivotJointNew2($(cpBody* bodyA), $(cpBody* bodyB), va, vb);
     cpConstraintSetUserData(constraint, (void*) $(intptr_t ety));
     return cpSpaceAddConstraint($(cpSpace* space), constraint);
     } |]
 
 newConstraint spacePtr bodyA bodyB (fromIntegral -> ety)
-              (GrooveJoint (fmap realToFrac -> V2 ax ay) (fmap realToFrac -> V2 bx by) (fmap realToFrac -> V2 ancx ancy)) =
+              (GrooveJoint (toTuple -> (ax, ay)) (toTuple -> (bx, by)) (toTuple -> (ancx, ancy))) =
   withForeignPtr spacePtr $ \space -> [C.block| cpConstraint* {
-    cpVect va = cpv( $(double ax), $(double ay) );
-    cpVect vb = cpv( $(double bx), $(double by) );
-    cpVect anchor = cpv( $(double ancx), $(double ancy) );
+    cpVect va = cpv( $(float ax), $(float ay) );
+    cpVect vb = cpv( $(float bx), $(float by) );
+    cpVect anchor = cpv( $(float ancx), $(float ancy) );
     cpConstraint* constraint = cpGrooveJointNew($(cpBody* bodyA), $(cpBody* bodyB), va, vb, anchor);
     cpConstraintSetUserData(constraint, (void*) $(intptr_t ety));
     return cpSpaceAddConstraint($(cpSpace* space), constraint);
     } |]
 
 newConstraint spacePtr bodyA bodyB (fromIntegral -> ety)
-              (DampedSpring (fmap realToFrac -> V2 ax ay) (fmap realToFrac -> V2 bx by) (realToFrac -> rl) (realToFrac -> stf) (realToFrac -> damping)) =
+              (DampedSpring (toTuple -> (ax, ay)) (toTuple -> (bx, by)) (realToFrac -> rl) (realToFrac -> stf) (realToFrac -> damping)) =
   withForeignPtr spacePtr $ \space -> [C.block| cpConstraint* {
-    cpVect va = cpv( $(double ax), $(double ay) );
-    cpVect vb = cpv( $(double bx), $(double by) );
-    cpConstraint* constraint = cpDampedSpringNew($(cpBody* bodyA), $(cpBody* bodyB), va, vb, $(double rl), $(double stf), $(double damping));
+    cpVect va = cpv( $(float ax), $(float ay) );
+    cpVect vb = cpv( $(float bx), $(float by) );
+    cpConstraint* constraint = cpDampedSpringNew($(cpBody* bodyA), $(cpBody* bodyB), va, vb, $(float rl), $(float stf), $(float damping));
     cpConstraintSetUserData(constraint, (void*) $(intptr_t ety));
     return cpSpaceAddConstraint($(cpSpace* space), constraint);
     } |]
@@ -101,7 +102,7 @@ newConstraint spacePtr bodyA bodyB (fromIntegral -> ety)
 newConstraint spacePtr bodyA bodyB (fromIntegral -> ety)
               (DampedRotarySpring (realToFrac -> ra) (realToFrac -> stf) (realToFrac -> damping)) =
   withForeignPtr spacePtr $ \space -> [C.block| cpConstraint* {
-    cpConstraint* constraint = cpDampedRotarySpringNew($(cpBody* bodyA), $(cpBody* bodyB), $(double ra), $(double stf), $(double damping));
+    cpConstraint* constraint = cpDampedRotarySpringNew($(cpBody* bodyA), $(cpBody* bodyB), $(float ra), $(float stf), $(float damping));
     cpConstraintSetUserData(constraint, (void*) $(intptr_t ety));
     return cpSpaceAddConstraint($(cpSpace* space), constraint);
     } |]
@@ -109,7 +110,7 @@ newConstraint spacePtr bodyA bodyB (fromIntegral -> ety)
 newConstraint spacePtr bodyA bodyB (fromIntegral -> ety)
               (RotaryLimitJoint  (realToFrac -> min) (realToFrac -> max)) =
   withForeignPtr spacePtr $ \space -> [C.block| cpConstraint* {
-    cpConstraint* constraint = cpRotaryLimitJointNew($(cpBody* bodyA), $(cpBody* bodyB), $(double min), $(double max));
+    cpConstraint* constraint = cpRotaryLimitJointNew($(cpBody* bodyA), $(cpBody* bodyB), $(float min), $(float max));
     cpConstraintSetUserData(constraint, (void*) $(intptr_t ety));
     return cpSpaceAddConstraint($(cpSpace* space), constraint);
     } |]
@@ -117,7 +118,7 @@ newConstraint spacePtr bodyA bodyB (fromIntegral -> ety)
 newConstraint spacePtr bodyA bodyB (fromIntegral -> ety)
               (RatchetJoint (realToFrac -> phase) (realToFrac -> ratchet)) =
   withForeignPtr spacePtr $ \space -> [C.block| cpConstraint* {
-    cpConstraint* constraint = cpRatchetJointNew($(cpBody* bodyA), $(cpBody* bodyB), $(double phase), $(double ratchet));
+    cpConstraint* constraint = cpRatchetJointNew($(cpBody* bodyA), $(cpBody* bodyB), $(float phase), $(float ratchet));
     cpConstraintSetUserData(constraint, (void*) $(intptr_t ety));
     return cpSpaceAddConstraint($(cpSpace* space), constraint);
     } |]
@@ -125,7 +126,7 @@ newConstraint spacePtr bodyA bodyB (fromIntegral -> ety)
 newConstraint spacePtr bodyA bodyB (fromIntegral -> ety)
               (GearJoint (realToFrac -> phase) (realToFrac -> ratio)) =
   withForeignPtr spacePtr $ \space -> [C.block| cpConstraint* {
-    cpConstraint* constraint = cpGearJointNew($(cpBody* bodyA), $(cpBody* bodyB), $(double phase), $(double ratio));
+    cpConstraint* constraint = cpGearJointNew($(cpBody* bodyA), $(cpBody* bodyB), $(float phase), $(float ratio));
     cpConstraintSetUserData(constraint, (void*) $(intptr_t ety));
     return cpSpaceAddConstraint($(cpSpace* space), constraint);
     } |]
@@ -133,7 +134,7 @@ newConstraint spacePtr bodyA bodyB (fromIntegral -> ety)
 newConstraint spacePtr bodyA bodyB (fromIntegral -> ety)
               (SimpleMotor (realToFrac -> rate)) =
   withForeignPtr spacePtr $ \space -> [C.block| cpConstraint* {
-    cpConstraint* constraint = cpSimpleMotorNew($(cpBody* bodyA), $(cpBody* bodyB), $(double rate));
+    cpConstraint* constraint = cpSimpleMotorNew($(cpBody* bodyA), $(cpBody* bodyB), $(float rate));
     cpConstraintSetUserData(constraint, (void*) $(intptr_t ety));
     return cpSpaceAddConstraint($(cpSpace* space), constraint);
     } |]
@@ -186,11 +187,11 @@ instance MonadIO m => ExplGet m (Space Constraint) where
     return cons
 
 -- MaxForce
-getMaxForce :: Ptr Constraint -> IO Double
-getMaxForce c = realToFrac <$> [C.exp| double { cpConstraintGetMaxForce ($(cpConstraint* c)) } |]
+getMaxForce :: Ptr Constraint -> IO Float
+getMaxForce c = realToFrac <$> [C.exp| float { cpConstraintGetMaxForce ($(cpConstraint* c)) } |]
 
-setMaxForce :: Ptr Constraint -> Double -> IO ()
-setMaxForce c (realToFrac -> maxForce) = [C.exp| void { cpConstraintSetMaxForce($(cpConstraint* c), $(double maxForce)); } |]
+setMaxForce :: Ptr Constraint -> Float -> IO ()
+setMaxForce c (realToFrac -> maxForce) = [C.exp| void { cpConstraintSetMaxForce($(cpConstraint* c), $(float maxForce)); } |]
 
 instance Component MaxForce where
   type Storage MaxForce = Space MaxForce
@@ -205,7 +206,7 @@ instance MonadIO m => ExplSet m (Space MaxForce) where
   explSet (Space _ _ cMap _ _) ety (MaxForce vec) = liftIO $ do
     rd <- M.lookup ety <$> readIORef cMap
     case rd of
-      Nothing -> return ()
+      Nothing           -> return ()
       Just (Record c _) -> setMaxForce c vec
 
 instance MonadIO m => ExplGet m (Space MaxForce) where
@@ -215,13 +216,13 @@ instance MonadIO m => ExplGet m (Space MaxForce) where
     MaxForce <$> getMaxForce c
 
 -- MaxBias
-getMaxBias :: Ptr Constraint -> IO Double
+getMaxBias :: Ptr Constraint -> IO Float
 getMaxBias c = do
-  maxBias <- [C.exp| double { cpConstraintGetMaxBias ($(cpConstraint* c)) } |]
+  maxBias <- [C.exp| float { cpConstraintGetMaxBias ($(cpConstraint* c)) } |]
   return (realToFrac maxBias)
 
-setMaxBias :: Ptr Constraint -> Double -> IO ()
-setMaxBias c (realToFrac -> maxBias) = [C.exp| void { cpConstraintSetMaxBias($(cpConstraint* c), $(double maxBias)); } |]
+setMaxBias :: Ptr Constraint -> Float -> IO ()
+setMaxBias c (realToFrac -> maxBias) = [C.exp| void { cpConstraintSetMaxBias($(cpConstraint* c), $(float maxBias)); } |]
 
 instance Component MaxBias where
   type Storage MaxBias = Space MaxBias
@@ -236,7 +237,7 @@ instance MonadIO m => ExplSet m (Space MaxBias) where
   explSet (Space _ _ cMap _ _) ety (MaxBias vec) = liftIO $ do
     rd <- M.lookup ety <$> readIORef cMap
     case rd of
-      Nothing -> return ()
+      Nothing           -> return ()
       Just (Record c _) -> setMaxBias c vec
 
 instance MonadIO m => ExplGet m (Space MaxBias) where
@@ -246,13 +247,13 @@ instance MonadIO m => ExplGet m (Space MaxBias) where
   explExists s ety = explExists (cast s :: Space Constraint) ety
 
 -- ErrorBias
-getErrorBias :: Ptr Constraint -> IO Double
+getErrorBias :: Ptr Constraint -> IO Float
 getErrorBias c = liftIO $ do
-  errorBias <- [C.exp| double { cpConstraintGetErrorBias ($(cpConstraint* c)) } |]
+  errorBias <- [C.exp| float { cpConstraintGetErrorBias ($(cpConstraint* c)) } |]
   return (realToFrac errorBias)
 
-setErrorBias :: Ptr Constraint -> Double -> IO ()
-setErrorBias c (realToFrac -> errorBias) = [C.exp| void { cpConstraintSetErrorBias($(cpConstraint* c), $(double errorBias)); } |]
+setErrorBias :: Ptr Constraint -> Float -> IO ()
+setErrorBias c (realToFrac -> errorBias) = [C.exp| void { cpConstraintSetErrorBias($(cpConstraint* c), $(float errorBias)); } |]
 
 instance Component ErrorBias where
   type Storage ErrorBias = Space ErrorBias
@@ -267,7 +268,7 @@ instance MonadIO m => ExplSet m (Space ErrorBias) where
   explSet (Space _ _ cMap _ _) ety (ErrorBias vec) = liftIO $ do
     rd <- M.lookup ety <$> readIORef cMap
     case rd of
-      Nothing -> return ()
+      Nothing           -> return ()
       Just (Record c _) -> setErrorBias c vec
 
 instance MonadIO m => ExplGet m (Space ErrorBias) where
@@ -277,8 +278,8 @@ instance MonadIO m => ExplGet m (Space ErrorBias) where
     ErrorBias <$> getErrorBias c
 
 -- Impulse
-getImpulse :: Ptr Constraint -> IO Double
-getImpulse c = realToFrac <$> [C.exp| double { cpConstraintGetImpulse ($(cpConstraint* c)) } |]
+getImpulse :: Ptr Constraint -> IO Float
+getImpulse c = realToFrac <$> [C.exp| float { cpConstraintGetImpulse ($(cpConstraint* c)) } |]
 
 instance Component Impulse where
   type Storage Impulse = Space Impulse
@@ -317,7 +318,7 @@ instance MonadIO m => ExplSet m (Space CollideBodies) where
   explSet (Space _ _ cMap _ _) ety (CollideBodies vec) = liftIO $ do
     rd <- M.lookup ety <$> readIORef cMap
     case rd of
-      Nothing -> return ()
+      Nothing           -> return ()
       Just (Record c _) -> setCollideBodies c vec
 
 instance MonadIO m => ExplGet m (Space CollideBodies) where
